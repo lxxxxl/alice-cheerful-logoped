@@ -124,6 +124,11 @@ class CLFlaskWrapper(Flask):
 			{'title': 'Дальше', 'hide': True},
 			{'title': 'Помощь', 'hide': True}
 		]
+		else:
+			suggests = [
+			{'title': 'Привет', 'hide': True},
+			{'title': 'Помощь', 'hide': True}
+		]
 		return suggests
 
 
