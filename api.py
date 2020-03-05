@@ -80,6 +80,12 @@ class CLFlaskWrapper(Flask):
 		
 		user_str = request['request']['original_utterance'].lower()
 		
+		if user_str in ['помощь', 'что ты умеешь']:
+			response['response']['text'] = 'Я - веселый логопед. Я буду говорить предложения, а ты повторяй за мной.'
+			response['response']['buttons'] = self.get_buttons(user_id)
+			return
+		
+		
 		if self.get_user_state(user_id) == 'AWAITING_START_CNF':
 			if user_str != 'привет':
 				response['response']['text'] = 'Скажи "Привет", и мы начнем.'	# Tell ok if it we can start
@@ -110,11 +116,13 @@ class CLFlaskWrapper(Flask):
 	
 		if state == 'AWAITING_START_CNF':
 			suggests = [
-			{'title': 'Привет', 'hide': True}
+			{'title': 'Привет', 'hide': True},
+			{'title': 'Помощь', 'hide': True}
 		]
 		elif state == 'AWAITING_SENTENCE_RESP':
 			suggests = [
-			{'title': 'Дальше', 'hide': True}
+			{'title': 'Дальше', 'hide': True},
+			{'title': 'Помощь', 'hide': True}
 		]
 		return suggests
 
