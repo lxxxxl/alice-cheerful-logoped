@@ -80,6 +80,17 @@ class CLFlaskWrapper(Flask):
 			self.create_session(user_id)
 		return self.sessionStorage[user_id]
 
+	def update_session(self, user_id, last_sentence=None, dificulty=None, state=None):
+		"""Updates session params"""
+		if user_id not in self.sessionStorage:					# setup default params for new user
+			self.create_session(user_id)
+		if last_sentence:
+			self.sessionStorage[user_id]['last_sentence'] = last_sentence
+		if dificulty:
+			self.sessionStorage[user_id]['dificulty'] = dificulty
+		if state:
+			self.sessionStorage[user_id]['state'] = state
+
 
 	def handle_dialog(self, request, response):
 		"""Process request and generate response"""
@@ -87,7 +98,7 @@ class CLFlaskWrapper(Flask):
 
 		if request['session']['new']:
 			# It is new user
-			self.get_session(user_id)['state'] = 'AWAITING_START_CNF'
+			self.update_session(user_id, state='AWAITING_START_CNF')
 			response['response']['text'] = 'Привет! Я - добрый логопед. Я буду говорить предложения, а ты повторяй за мной. Скажи "Привет", и мы начнем.'
 			response['response']['buttons'] = self.get_buttons(user_id)
 			return
@@ -99,38 +110,28 @@ class CLFlaskWrapper(Flask):
 			response['response']['text'] = 'Я - добрый логопед. Я буду говорить предложения, а ты повторяй за мной. Если хочешь поменять сложность, то скажи "Попроще", или "Посложней".'
 			response['response']['buttons'] = self.get_buttons(user_id)
 			return				
-		
-		if self.get_session(user_id)['state'] == 'AWAITING_START_CNF':
-			if user_str != 'привет':
-				response['response']['text'] = 'Скажи "Привет", и мы начнем.'
-				response['response']['buttons'] = self.get_buttons(user_id)
-				return
-			else:
-				self.get_session(user_id)['state'] = 'AWAITING_SENTENCE_RESP'
-				response['response']['text'] = 'Повторяй. '
-				response['response']['buttons'] = self.get_buttons(user_id)
 
-		if user_str == 'попроще':
-			if self.get_session(user_id)['dificulty'] <= 1:
-				response['response']['text'] = 'Извини, проще уже некуда. Повторяй за мной, или скажи "Дальше". ' + "\n" + self.get_session(user_id)['last_sentence']
-				return
-			else:
-				self.get_session(user_id)['dificulty'] -= 1
-				response['response']['text'] = 'Хорошо, давай попроще. Повторяй. '
-
-		elif user_str == 'посложней':
-			if self.get_session(user_id)['dificulty'] >= 3:
-				response['response']['text'] = 'Извини, сложней уже некуда. Повторяй за мной, или скажи "Дальше". ' + "\n" + self.get_session(user_id)['last_sentence']
-				return
-			else:
-				self.get_session(user_id)['dificulty'] += 1
-				response['response']['text'] = 'Хорошо, давай посложней. Повторяй. '
-		
-		
-		elif self.get_session(user_id)['state'] == 'AWAITING_SENTENCE_RESP':	
+		if self.get_session(user_id)['state'] == 'AWAITING_SENTENCE_RESP':	
 			if user_str == 'Дальше':
 				response['response']['text'] = 'Повторяй. '
 				response['response']['buttons'] = self.get_buttons(user_id)
+
+			elif user_str == 'попроще':
+				if self.get_session(user_id)['dificulty'] <= 1:
+					response['response']['text'] = 'Извини, проще уже некуда. Повторяй за мной, или скажи "Дальше". ' + "\n" + self.get_session(user_id)['last_sentence']
+					return
+				else:
+					self.update_session(user_id, dificulty=self.get_session(user_id)['dificulty']-1)
+					response['response']['text'] = 'Хорошо, давай попроще. Повторяй. '
+
+			elif user_str == 'посложней':
+				if self.get_session(user_id)['dificulty'] >= 3:
+					response['response']['text'] = 'Извини, сложней уже некуда. Повторяй за мной, или скажи "Дальше". ' + "\n" + self.get_session(user_id)['last_sentence']
+					return
+				else:
+					self.update_session(user_id, dificulty=self.get_session(user_id)['dificulty']+1)
+					response['response']['text'] = 'Хорошо, давай посложней. Повторяй. '
+
 			elif self.similiar(user_str, self.get_session(user_id)['last_sentence']) >= 0.7:
 				award = random.choice(['Не плохо.', 'Молодец.', 'Хорошо.', 'Отлично.'])
 				response['response']['text'] = award + ' Повторяй. '
@@ -141,8 +142,18 @@ class CLFlaskWrapper(Flask):
 				response['response']['buttons'] = self.get_buttons(user_id)
 				return
 
+		elif self.get_session(user_id)['state'] == 'AWAITING_START_CNF':
+			if user_str != 'привет':
+				response['response']['text'] = 'Скажи "Привет", и мы начнем.'
+				response['response']['buttons'] = self.get_buttons(user_id)
+				return
+			else:
+				self.update_session(user_id, state='AWAITING_SENTENCE_RESP')
+				response['response']['text'] = 'Повторяй. '
+				response['response']['buttons'] = self.get_buttons(user_id)
+
 		random_sentence = self.generate_random_sentence(self.get_session(user_id)['dificulty'])
-		self.get_session(user_id)['last_sentence'] = random_sentence
+		self.update_session(user_id, last_sentence=random_sentence)
 		response['response']['text'] += "\n" + random_sentence
 	
 	def get_buttons(self, user_id):
