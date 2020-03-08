@@ -39,31 +39,31 @@ class BasicTests(unittest.TestCase):
         request = '{"version":"111","session":{"user_id": "aaa", "new": 1}}'  
         response  = self.app.post('/', content_type='application/json', data=request)
         json_response = json.loads(response.data)
-        self.assertNotEqual('Привет!' in json_response, True)
+        self.assertEqual('Привет!' in json_response['response']['text'], True)
 
     def test_invalid_request(self):
         request = '{"version":"111","session":{"user_id": "aaa", "new": 0}, "request":{"original_utterance":"aaa"}}'  
         response  = self.app.post('/', content_type='application/json', data=request)
         json_response = json.loads(response.data)
-        self.assertNotEqual('и мы начнем' in json_response, True)
+        self.assertEqual('и мы начнем' in json_response['response']['text'], True)
 
     def test_help(self):
         request = '{"version":"111","session":{"user_id": "aaa", "new": 0}, "request":{"original_utterance":"помощь"}}'  
         response  = self.app.post('/', content_type='application/json', data=request)
         json_response = json.loads(response.data)
-        self.assertNotEqual('Я - добрый логопед.' in json_response, True)
+        self.assertEqual('Я - добрый логопед.' in json_response['response']['text'], True)
 
     def test_start_dialog(self):
         request = '{"version":"111","session":{"user_id": "aaa", "new": 0}, "request":{"original_utterance":"привет"}}'  
         response  = self.app.post('/', content_type='application/json', data=request)
         json_response = json.loads(response.data)
-        self.assertNotEqual('Повторяй.' in json_response, True)
+        self.assertEqual('Повторяй.' in json_response['response']['text'], True)
 
     def test_invalid_sentence(self):
         request = '{"version":"111","session":{"user_id": "aaa", "new": 0}, "request":{"original_utterance":"aaa"}}'  
         response  = self.app.post('/', content_type='application/json', data=request)
         json_response = json.loads(response.data)
-        self.assertNotEqual('Повторяй за мной, или скажи "Дальше".' in json_response, True)
+        self.assertEqual('Повторяй за мной, или скажи "Дальше".' in json_response['response']['text'], True)
 
     def test_max_dificulty(self):
         request = '{"version":"111","session":{"user_id": "aaa", "new": 0}, "request":{"original_utterance":"посложней"}}'  
@@ -72,7 +72,7 @@ class BasicTests(unittest.TestCase):
         response  = self.app.post('/', content_type='application/json', data=request)
         response  = self.app.post('/', content_type='application/json', data=request)
         json_response = json.loads(response.data)
-        self.assertNotEqual('Извини, сложней уже некуда.' in json_response, True)
+        self.assertEqual('Извини, сложней уже некуда.' in json_response['response']['text'], True)
 
     def test_min_dificulty(self):
         request = '{"version":"111","session":{"user_id": "aaa", "new": 0}, "request":{"original_utterance":"попроще"}}'  
@@ -81,7 +81,7 @@ class BasicTests(unittest.TestCase):
         response  = self.app.post('/', content_type='application/json', data=request)
         response  = self.app.post('/', content_type='application/json', data=request)
         json_response = json.loads(response.data)
-        self.assertNotEqual('Извини, проще уже некуда.' in json_response, True)
+        self.assertEqual('Извини, проще уже некуда.' in json_response['response']['text'], True)
 
         
  
