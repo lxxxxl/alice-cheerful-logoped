@@ -5,6 +5,7 @@ import json
 import logging
 import random
 import pymorphy2
+from difflib import SequenceMatcher
 from flask import Flask, request
 
 
@@ -16,9 +17,19 @@ class CLFlaskWrapper(Flask):
 	words_adjf = None
 	words_verb = None
 	
-	# Stores session states
-	# AWAITING_START_CNF		awaiting approval for play
-	# AWAITING_SENTENCE_RESP	awaiting for 'next' command or sentence
+	"""
+	 Stores session information
+	session{'state', 'dificulty', 'last_sentence'}
+
+	Possible states:
+	AWAITING_START_CNF		awaiting approval for play
+	AWAITING_SENTENCE_RESP	awaiting for 'next' command or sentence
+
+	dificulty:
+	1			only one word
+	2			noun with verb or adjective
+	3			full sentence
+	"""
 	sessionStorage = {}
 
 	
@@ -56,15 +67,19 @@ class CLFlaskWrapper(Flask):
 		)
 		
 		
-	def get_user_state(self, user_id):
-		"""Returns state of session for user"""
-		if user_id not in self.sessionStorage:
-			return None
+	def create_session(self, user_id):
+			"""Creates session with default params"""
+			self.sessionStorage[user_id] = {}
+			self.sessionStorage[user_id]['last_sentence'] = ''
+			self.sessionStorage[user_id]['dificulty'] = 2		# default dificulty is "noun with verb or adjective"
+			self.sessionStorage[user_id]['state'] = 'AWAITING_START_CNF'
+
+	def get_session(self, user_id):
+		"""Get session context for user_if provided"""
+		if user_id not in self.sessionStorage:					# setup default params for new user
+			self.create_session(user_id)
 		return self.sessionStorage[user_id]
-		
-	def set_user_state(self, user_id, state):
-		"""Sets state of session"""
-		self.sessionStorage[user_id] = state
+
 
 	def handle_dialog(self, request, response):
 		"""Process request and generate response"""
@@ -72,46 +87,64 @@ class CLFlaskWrapper(Flask):
 
 		if request['session']['new']:
 			# It is new user
-			response['response']['text'] = 'Привет! Я - веселый логопед. Я буду говорить предложения, а ты повторяй за мной. Скажи "Привет", и мы начнем.'
+			self.get_session(user_id)['state'] = 'AWAITING_START_CNF'
+			response['response']['text'] = 'Привет! Я - добрый логопед. Я буду говорить предложения, а ты повторяй за мной. Скажи "Привет", и мы начнем.'
 			response['response']['buttons'] = self.get_buttons(user_id)
-			self.set_user_state(user_id, 'AWAITING_START_CNF')
 			return
 	
 		
 		user_str = request['request']['original_utterance'].lower()
 		
 		if user_str in ['помощь', 'что ты умеешь']:
-			response['response']['text'] = 'Я - веселый логопед. Я буду говорить предложения, а ты повторяй за мной.'
+			response['response']['text'] = 'Я - добрый логопед. Я буду говорить предложения, а ты повторяй за мной. Если хочешь поменять сложность, то скажи "Попроще", или "Посложней".'
 			response['response']['buttons'] = self.get_buttons(user_id)
-			return
+			return				
 		
-		
-		if self.get_user_state(user_id) == 'AWAITING_START_CNF':
+		if self.get_session(user_id)['state'] == 'AWAITING_START_CNF':
 			if user_str != 'привет':
-				response['response']['text'] = 'Скажи "Привет", и мы начнем.'	# Tell ok if it we can start
+				response['response']['text'] = 'Скажи "Привет", и мы начнем.'
 				response['response']['buttons'] = self.get_buttons(user_id)
+				return
 			else:
-				self.set_user_state(user_id, 'AWAITING_SENTENCE_RESP')
-				response['response']['text'] = 'Повторяй: ' + self.generate_random_sentence()
+				self.get_session(user_id)['state'] = 'AWAITING_SENTENCE_RESP'
+				response['response']['text'] = 'Повторяй. '
 				response['response']['buttons'] = self.get_buttons(user_id)
+
+		if user_str == 'попроще':
+			if self.get_session(user_id)['dificulty'] <= 1:
+				response['response']['text'] = 'Извини, проще уже некуда. Повторяй за мной, или скажи "Дальше". ' + self.get_session(user_id)['last_sentence']
+				return
+			else:
+				self.get_session(user_id)['dificulty'] -= 1
+				response['response']['text'] = 'Хорошо, давай попроще. Повторяй. '
+
+		elif user_str == 'посложней':
+			if self.get_session(user_id)['dificulty'] >= 3:
+				response['response']['text'] = 'Извини, сложней уже некуда. Повторяй за мной, или скажи "Дальше". ' + self.get_session(user_id)['last_sentence']
+				return
+			else:
+				self.get_session(user_id)['dificulty'] += 1
+				response['response']['text'] = 'Хорошо, давай посложней. Повторяй. '
 		
 		
-		elif self.get_user_state(user_id) == 'AWAITING_SENTENCE_RESP':	
+		elif self.get_session(user_id)['state'] == 'AWAITING_SENTENCE_RESP':	
 			if user_str == 'Дальше':
-				response['response']['text'] = 'Повторяй: ' + self.generate_random_sentence()
+				response['response']['text'] = 'Повторяй. '
 				response['response']['buttons'] = self.get_buttons(user_id)
-			elif len(user_str)>=20:		# crutch to check validity of sentence
+			elif self.similiar(user_str, self.get_session(user_id)['last_sentence']) >= 0.7:
 				award = random.choice(['Не плохо.', 'Молодец.', 'Хорошо.', 'Отлично.'])
-				response['response']['text'] = award + ' Повторяй: ' + self.generate_random_sentence()
+				response['response']['text'] = award + ' Повторяй. '
 				response['response']['buttons'] = self.get_buttons(user_id)
 			else:
-				award = random.choice(['Повнимательней. ', 'Постарайся получше.'])
-				response['response']['text'] = award + ' Следующее: ' + self.generate_random_sentence()
+				award = random.choice(['Повнимательней. ', 'Постарайся получше. '])
+				response['response']['text'] = award + ' Повторяй за мной, или скажи "Дальше". ' + self.get_session(user_id)['last_sentence']
 				response['response']['buttons'] = self.get_buttons(user_id)
+
+		response['response']['text'] += self.generate_random_sentence(self.get_session(user_id)['dificulty'])
 	
 	def get_buttons(self, user_id):
 		"""Creates Button objects for response"""
-		state = self.get_user_state(user_id)
+		state = self.get_session(user_id)['state']
 		suggests = []
 	
 		if state == 'AWAITING_START_CNF':
@@ -126,7 +159,6 @@ class CLFlaskWrapper(Flask):
 		]
 		else:
 			suggests = [
-			{'title': 'Привет', 'hide': True},
 			{'title': 'Помощь', 'hide': True}
 		]
 		return suggests
@@ -139,8 +171,8 @@ class CLFlaskWrapper(Flask):
 			return morph_parsed
 		return morph_ret
 	
-	def generate_sentence(self, noun, adjf, verb):
-		"""Generates valid sentence with moun, adjective and verb provided"""
+	def generate_sentence_3(self, noun, adjf, verb, reduce_dificulty=False):
+		"""Generates valid sentence with  with dificulty level 3, moun, adjective and verb"""
 	
 		morph = pymorphy2.MorphAnalyzer()
 	
@@ -181,14 +213,47 @@ class CLFlaskWrapper(Flask):
 			p_noun = self.inflect_with_check(p_noun, {gram_case, 'plur'})
 			p_adjf = self.inflect_with_check(p_adjf, {gram_case, p_noun.tag.number})
 	
-		return '{} {} {} {}'.format(verb_rule[0], p_verb.word, p_adjf.word, p_noun.word)
+		if not reduce_dificulty:
+			return '{} {} {} {}'.format(verb_rule[0], p_verb.word, p_adjf.word, p_noun.word)
+		else:
+			if bool(random.getrandbits(1)):
+				return '{} {}'.format(p_verb.word, p_noun.word)
+			else:
+				return '{} {}'.format(p_adjf.word, p_noun.word)
 
-	def generate_random_sentence(self):
+	def generate_sentence_2(self, noun, adjf, verb):
+		"""Generates valid sentence with dificulty level 2, noun with verb or adjective"""
+		return self.generate_sentence_3(noun, adjf, verb, reduce_dificulty=True)
+
+	def generate_sentence_1(self, noun_arr, adjf_arr, verb_arr):
+		"""Generates valid sentence with dificulty level 1, one word"""
+		return random.choice(noun_arr + adjf_arr + verb_arr).strip()
+
+	def generate_random_sentence(self, dificulty):
 		"""Generates valid sentence with random moun, adjective and verb"""
-		return self.generate_sentence(
+
+		sentence = ''
+		if dificulty <= 1:
+			sentence = self.generate_sentence_1(
+				self.words_noun, 
+				self.words_adjf,
+				self.words_verb)
+		elif dificulty >= 3:
+			sentence = self.generate_sentence_3(
+				random.choice(self.words_noun).strip(), 
+				random.choice(self.words_adjf).strip(),
+				random.choice(self.words_verb).strip())
+		else:
+			sentence = self.generate_sentence_2(
 				random.choice(self.words_noun).strip(), 
 				random.choice(self.words_adjf).strip(),
 				random.choice(self.words_verb).strip()) 
+
+		return sentence
+	
+	def similiar(self, str1, str2):
+		""" Returns similiarity ratio of two strings"""
+		return SequenceMatcher(None, str1, str2).ratio()
 
 
 
