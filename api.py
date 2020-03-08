@@ -112,7 +112,7 @@ class CLFlaskWrapper(Flask):
 			return				
 
 		if self.get_session(user_id)['state'] == 'AWAITING_SENTENCE_RESP':	
-			if user_str == 'Дальше':
+			if user_str == 'дальше':
 				response['response']['text'] = 'Повторяй. '
 				response['response']['buttons'] = self.get_buttons(user_id)
 
