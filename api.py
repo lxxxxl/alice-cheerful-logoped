@@ -112,7 +112,7 @@ class CLFlaskWrapper(Flask):
 
 		if user_str == 'попроще':
 			if self.get_session(user_id)['dificulty'] <= 1:
-				response['response']['text'] = 'Извини, проще уже некуда. Повторяй за мной, или скажи "Дальше". ' + self.get_session(user_id)['last_sentence']
+				response['response']['text'] = 'Извини, проще уже некуда. Повторяй за мной, или скажи "Дальше". ' + "\n" + self.get_session(user_id)['last_sentence']
 				return
 			else:
 				self.get_session(user_id)['dificulty'] -= 1
@@ -120,7 +120,7 @@ class CLFlaskWrapper(Flask):
 
 		elif user_str == 'посложней':
 			if self.get_session(user_id)['dificulty'] >= 3:
-				response['response']['text'] = 'Извини, сложней уже некуда. Повторяй за мной, или скажи "Дальше". ' + self.get_session(user_id)['last_sentence']
+				response['response']['text'] = 'Извини, сложней уже некуда. Повторяй за мной, или скажи "Дальше". ' + "\n" + self.get_session(user_id)['last_sentence']
 				return
 			else:
 				self.get_session(user_id)['dificulty'] += 1
@@ -137,10 +137,13 @@ class CLFlaskWrapper(Flask):
 				response['response']['buttons'] = self.get_buttons(user_id)
 			else:
 				award = random.choice(['Повнимательней. ', 'Постарайся получше. '])
-				response['response']['text'] = award + ' Повторяй за мной, или скажи "Дальше". ' + self.get_session(user_id)['last_sentence']
+				response['response']['text'] = award + ' Повторяй за мной, или скажи "Дальше". ' + "\n" + self.get_session(user_id)['last_sentence']
 				response['response']['buttons'] = self.get_buttons(user_id)
+				return
 
-		response['response']['text'] += self.generate_random_sentence(self.get_session(user_id)['dificulty'])
+		random_sentence = self.generate_random_sentence(self.get_session(user_id)['dificulty'])
+		self.get_session(user_id)['last_sentence'] = random_sentence
+		response['response']['text'] += "\n" + random_sentence
 	
 	def get_buttons(self, user_id):
 		"""Creates Button objects for response"""
